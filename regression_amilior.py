@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
@@ -104,78 +103,50 @@ print(f"   Test  : {len(X_test)} lignes")
 print(f"   Features : {X_train.shape[1]}")
 
 # ============================================
-# 6. ENTRAÎNEMENT DE PLUSIEURS MODÈLES
+# 6. ENTRAÎNEMENT DU MODÈLE RANDOM FOREST
 # ============================================
 
-models = {
-    'Linear Regression': LinearRegression(),
-    'Ridge (L2)': Ridge(alpha=1.0),
-    'Lasso (L1)': Lasso(alpha=0.1),
-    'Random Forest': RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
-}
+# Entraînement du modèle Random Forest
+rf_model = RandomForestRegressor(n_estimators=100, max_depth=10, random_state=42, n_jobs=-1)
 
-results = {}
-
-print("\n Entraînement et évaluation des modèles :")
+print("\n Entraînement du modèle Random Forest :")
 print("=" * 60)
 
-for name, model in models.items():
-    # Entraînement
-    model.fit(X_train, y_train)
-    
-    # Prédictions
-    y_pred = model.predict(X_test)
-    
-    # Métriques
-    r2 = r2_score(y_test, y_pred)
-    mae = mean_absolute_error(y_test, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    
-    # Cross-validation (sur un échantillon pour gagner du temps)
-    cv_sample = min(10000, len(X_train))
-    cv_scores = cross_val_score(
-        model, X_train.iloc[:cv_sample], y_train.iloc[:cv_sample],
-        cv=5, scoring='r2', n_jobs=-1
-    )
-    
-    results[name] = {
-        'model': model,
-        'r2': r2,
-        'mae': mae,
-        'rmse': rmse,
-        'cv_mean': cv_scores.mean(),
-        'cv_std': cv_scores.std(),
-        'predictions': y_pred
-    }
-    
-    print(f"\n{name} :")
-    print(f"  R² Score       : {r2:.4f}")
-    print(f"  MAE            : {mae:.4f}%")
-    print(f"  RMSE           : {rmse:.4f}%")
-    print(f"  CV R² (mean±std): {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
+# Entraînement
+rf_model.fit(X_train, y_train)
+
+# Prédictions
+y_pred = rf_model.predict(X_test)
+
+# Métriques
+r2 = r2_score(y_test, y_pred)
+mae = mean_absolute_error(y_test, y_pred)
+rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+
+# Cross-validation (sur un échantillon pour gagner du temps)
+cv_sample = min(10000, len(X_train))
+cv_scores = cross_val_score(
+    rf_model, X_train.iloc[:cv_sample], y_train.iloc[:cv_sample],
+    cv=5, scoring='r2', n_jobs=-1
+)
+
+print(f"\nRandom Forest :")
+print(f"  R² Score       : {r2:.4f}")
+print(f"  MAE            : {mae:.4f}%")
+print(f"  RMSE           : {rmse:.4f}%")
+print(f"  CV R² (mean±std): {cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
 
 # ============================================
 # 7. ANALYSE DES FEATURES IMPORTANTES
 # ============================================
 
-best_model_name = max(results, key=lambda k: results[k]['r2'])
-best_model = results[best_model_name]['model']
-
-print(f"\n🏆 Meilleur modèle : {best_model_name}")
+print(f"\n🏆 Modèle Random Forest")
 
 # Extraire l'importance des features
-if hasattr(best_model, 'feature_importances_'):
-    # Pour Random Forest
-    importance = pd.DataFrame({
-        'Feature': X.columns,
-        'Importance': best_model.feature_importances_
-    }).sort_values('Importance', ascending=False).head(15)
-elif hasattr(best_model, 'coef_'):
-    # Pour les modèles linéaires
-    importance = pd.DataFrame({
-        'Feature': X.columns,
-        'Coefficient': best_model.coef_
-    }).sort_values('Coefficient', key=abs, ascending=False).head(15)
+importance = pd.DataFrame({
+    'Feature': X.columns,
+    'Importance': rf_model.feature_importances_
+}).sort_values('Importance', ascending=False).head(15)
 
 print("\n Top 15 des features les plus importantes :")
 print(importance.to_string(index=False))
@@ -186,46 +157,41 @@ print(importance.to_string(index=False))
 
 fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 
-# 1. Comparaison des modèles
+# 1. Performance du modèle Random Forest
 ax1 = axes[0, 0]
-model_names = list(results.keys())
-r2_scores = [results[m]['r2'] for m in model_names]
-colors = ['green' if r2 == max(r2_scores) else 'steelblue' for r2 in r2_scores]
+metrics = ['R²', 'MAE', 'RMSE', 'CV R²']
+values = [r2, mae, rmse, cv_scores.mean()]
+colors = ['green', 'orange', 'red', 'blue']
 
-ax1.barh(model_names, r2_scores, color=colors)
-ax1.set_xlabel('R² Score')
-ax1.set_title('Comparaison des Performances des Modèles')
-ax1.grid(axis='x', alpha=0.3)
+ax1.bar(metrics, values, color=colors, alpha=0.7)
+ax1.set_ylabel('Score')
+ax1.set_title('Métriques de Performance - Random Forest')
+ax1.grid(axis='y', alpha=0.3)
 
-for i, v in enumerate(r2_scores):
-    ax1.text(v + 0.01, i, f'{v:.4f}', va='center')
+for i, v in enumerate(values):
+    ax1.text(i, v + max(values)*0.01, f'{v:.4f}', ha='center')
 
 # 2. Features importantes
 ax2 = axes[0, 1]
-if 'Importance' in importance.columns:
-    ax2.barh(importance['Feature'].head(10), importance['Importance'].head(10))
-    ax2.set_xlabel('Importance')
-else:
-    ax2.barh(importance['Feature'].head(10), importance['Coefficient'].head(10).abs())
-    ax2.set_xlabel('|Coefficient|')
-ax2.set_title(f'Top 10 Features - {best_model_name}')
+ax2.barh(importance['Feature'].head(10), importance['Importance'].head(10))
+ax2.set_xlabel('Importance')
+ax2.set_title(f'Top 10 Features - Random Forest')
 ax2.grid(axis='x', alpha=0.3)
 
 # 3. Prédictions vs Réalité
 ax3 = axes[1, 0]
-y_pred_best = results[best_model_name]['predictions']
-ax3.scatter(y_test, y_pred_best, alpha=0.3, s=10)
+ax3.scatter(y_test, y_pred, alpha=0.3, s=10)
 ax3.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 
          'r--', lw=2, label='Prédiction parfaite')
 ax3.set_xlabel('Taux de mortalité réel (%)')
 ax3.set_ylabel('Taux de mortalité prédit (%)')
-ax3.set_title(f'Prédictions vs Réalité ({best_model_name})')
+ax3.set_title(f'Prédictions vs Réalité (Random Forest)')
 ax3.legend()
 ax3.grid(alpha=0.3)
 
 # 4. Distribution des erreurs
 ax4 = axes[1, 1]
-errors = y_test - y_pred_best
+errors = y_test - y_pred
 ax4.hist(errors, bins=50, edgecolor='black', alpha=0.7)
 ax4.axvline(0, color='red', linestyle='--', linewidth=2)
 ax4.set_xlabel('Erreur de prédiction (%)')
